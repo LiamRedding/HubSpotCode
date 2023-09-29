@@ -1,0 +1,51 @@
+const axios = require('axios');
+
+exports.main = async (event, callback) => {
+  const dealId = event.inputFields['dealId']; // Get dealId dynamically from input fields
+  
+  try {
+    await axios({
+      method: 'post',
+      url: 'https://api.hubapi.com/crm/v3/objects/line_items',
+      headers: {
+        'Authorization': `Bearer ${process.env.hapikey}`, // Use hapikey from environment variables
+        'Content-Type': 'application/json',
+      },
+      data: JSON.stringify({
+        properties: {
+          name: "",
+          price: "",
+          quantity: "",
+          hs_product_id: "",
+        },
+        associations: [
+          {
+            to: { id: dealId },
+            types: [{ associationCategory: 'HUBSPOT_DEFINED', associationTypeId: 20 }]
+          }
+        ]
+      })
+    });
+    
+    console.log(`Successfully created and associated line item for deal ${dealId}`);
+    callback({
+      outputFields: {
+        created: true
+      }
+    });
+  } catch (error) {
+    console.log(`Error creating and associating line item for deal ${dealId}: ${error}`);
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      console.log('Response data:', error.response.data);
+      console.log('Response status:', error.response.status);
+      console.log('Response headers:', error.response.headers);
+    }
+    callback({
+      outputFields: {
+        error: "Error creating and associating line item"
+      }
+    });
+  }
+};
