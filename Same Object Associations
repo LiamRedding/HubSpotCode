@@ -1,0 +1,42 @@
+const axios = require('axios');
+
+exports.main = async (event, callback) => {
+  const parentId = event.inputFields['parentId']; 
+  const childId = event.inputFields['childId'];
+
+  try {
+    await axios({
+      method: 'put',
+      url: `https://api.hubapi.com/crm/v4/objects/contact/${parentId}/associations/contact/${childId}`,
+      headers: {
+        'Authorization': `Bearer ${process.env.hapikey}`, 
+        'Content-Type': 'application/json',
+      },
+      data: JSON.stringify([
+        {
+          "associationCategory": "USER_DEFINED",
+          "associationTypeId": 21
+        }
+      ])
+    });
+    
+    console.log(`Successfully associated contacts with label`);
+    callback({
+      outputFields: {
+        created: true
+      }
+    });
+  } catch (error) {
+    console.log(`Error associating contacts with label`);
+    if (error.response) {
+      console.log('Response data:', error.response.data);
+      console.log('Response status:', error.response.status);
+      console.log('Response headers:', error.response.headers);
+    }
+    callback({
+      outputFields: {
+        error: "Error associating contacts with label"
+      }
+    });
+  }
+};
