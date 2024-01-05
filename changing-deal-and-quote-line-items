@@ -1,0 +1,167 @@
+// Unpublish Quote - Coded Action 1
+
+const axios = require('axios');
+
+exports.main = async (event, callback) => {
+    const quoteId = event.inputFields['quoteId'];
+    const hapikey = process.env.hapikey; // Using environment variable for API key
+
+    const data = {
+        properties: {
+            hs_status: "DRAFT"
+        }
+    };
+
+    try {
+        const response = await axios({
+            method: 'patch',
+            url: `https://api.hubapi.com/crm/v3/objects/quotes/${quoteId}`,
+            headers: {
+                'Authorization': `Bearer ${hapikey}`,
+                'Content-Type': 'application/json'
+            },
+            data: data
+        });
+
+        console.log(`Successfully updated quote ${quoteId}.`);
+        callback({ outputFields: { status: response.data.status } });
+    } catch (error) {
+        console.error(`Error while updating quote ${quoteId}:`, error.message);
+        callback({ error: error.message });
+    }
+};
+
+// Delete Line Item - Coded Action 2
+  
+const axios = require('axios');
+
+exports.main = async (event, callback) => {
+    console.log('Function started');
+    const removeLineItem = event.inputFields['removeLineItemId'];
+    const hapikey = process.env.hapikey;
+
+    // Function to perform a DELETE request for a batch of line items
+    async function deleteLineItems(lineItemIds) {
+        try {
+            const lineItemIdsString = lineItemIds.map(item => item.id).join(', ');
+            console.log(`Attempting to delete line items: ${lineItemIdsString}`);
+            const response = await axios.post(
+                `https://api.hubapi.com/crm/v3/objects/line_items/batch/archive`,
+                { inputs: lineItemIds },
+                {
+                    headers: {
+                        'Authorization': `Bearer ${hapikey}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+            console.log(`Successfully deleted line items: ${lineItemIdsString}.`);
+            return response.data;
+        } catch (error) {
+            console.error(`Error while deleting line items:`, error);
+            return null;
+        }
+    }
+
+    // Delete the provided line item
+    if (removeLineItem) {
+        console.log(`Deleting line item with ID: ${removeLineItem}`);
+        await deleteLineItems([{ id: removeLineItem }]);
+    } else {
+        console.log('No removeLineItem provided for deletion');
+    }
+
+    // Respond with the result
+    callback({ outputFields: { message: 'Line item deletion completed' } });
+};
+
+// Create and Associate New Line Item - Coded Action 3
+
+const axios = require('axios');
+
+exports.main = async (event, callback) => {
+    console.log('Function started');
+    const quoteId = event.inputFields['quoteId'];
+    const dealId = event.inputFields['dealId'];
+    const addProduct = event.inputFields['addProduct'];
+    const discount = event.inputFields['discount'];
+    const hapikey = process.env.hapikey;
+
+    // Function to perform a POST or PUT request
+    async function postOrPutRequest(url, method, data) {
+        try {
+            console.log(`${method} Request for ${url}: Sending data =>`, data);
+            const response = await axios({
+                method: method,
+                url: url,
+                headers: {
+                    'Authorization': `Bearer ${hapikey}`,
+                    'Content-Type': 'application/json'
+                },
+                data: data
+            });
+            console.log(`${method} Request Successful for ${url}: Response =>`, response.data);
+            return response.data;
+        } catch (error) {
+            console.error(`Error in ${method} request for ${url}:`, error);
+            return null;
+        }
+    }
+
+    // Create a new line item
+    const lineData = {
+        properties: {
+            "quantity": 1,
+            "hs_product_id": addProduct,
+            "discount": discount,
+        }
+    };
+    console.log('Creating a new line item with data:', lineData);
+    const newLineItem = await postOrPutRequest(`https://api.hubapi.com/crm/v3/objects/line_items`, 'post', lineData);
+
+    // Associate the new line item with the quote and deal
+    if (newLineItem && newLineItem.id) {
+        console.log(`Associating new line item with ID ${newLineItem.id} with the quote and deal...`);
+        await postOrPutRequest(`https://api.hubapi.com/crm/v4/objects/quotes/${quoteId}/associations/default/line_items/${newLineItem.id}`, 'put', {});
+        await postOrPutRequest(`https://api.hubapi.com/crm/v4/objects/deals/${dealId}/associations/default/line_items/${newLineItem.id}`, 'put', {});
+    } else {
+        console.log('No new line item created or missing ID');
+    }
+
+    // Respond with the result
+    callback({ outputFields: { lineItemId: newLineItem ? newLineItem.id : null } });
+};
+
+// Republish Quote - Coded Action 4
+
+const axios = require('axios');
+
+exports.main = async (event, callback) => {
+    const quoteId = event.inputFields['quoteId'];
+    const hapikey = process.env.hapikey; // Using environment variable for API key
+
+    const data = {
+        properties: {
+            hs_status: "APPROVAL_NOT_NEEDED"
+        }
+    };
+
+    try {
+        const response = await axios({
+            method: 'patch',
+            url: `https://api.hubapi.com/crm/v3/objects/quotes/${quoteId}`,
+            headers: {
+                'Authorization': `Bearer ${hapikey}`,
+                'Content-Type': 'application/json'
+            },
+            data: data
+        });
+
+        console.log(`Successfully updated quote ${quoteId}.`);
+        callback({ outputFields: { status: response.data.status } });
+    } catch (error) {
+        console.error(`Error while updating quote ${quoteId}:`, error.message);
+        callback({ error: error.message });
+    }
+};
+
