@@ -1,0 +1,85 @@
+const axios = require('axios');
+
+// Environment variable for HubSpot API Key
+const HUBSPOT_API_KEY = process.env.hapikey;
+
+exports.main = async (event, callback) => {
+    try {
+        const TABLE_ID = ''; // The table ID for your HubDB table
+        const NUMBER_COLUMN_ID = 2;  // The column ID for the "number" column
+        const DATETIME_COLUMN_ID = 4;  // The column ID for the date/time column
+
+        // Fetch all rows in the table ordered by the date/time column (most recent first)
+        const getRowsResponse = await axios({
+            method: 'get',
+            url: `https://api.hubapi.com/hubdb/api/v2/tables/${TABLE_ID}/rows?orderBy=-${DATETIME_COLUMN_ID}`,
+            headers: {
+                'Authorization': `Bearer ${HUBSPOT_API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('Fetched rows:', JSON.stringify(getRowsResponse.data, null, 2));
+
+        // Find the most recent row with a valid date/time and number
+        let mostRecentRow = null;
+        for (const row of getRowsResponse.data.objects) {
+            if (row.values[DATETIME_COLUMN_ID] && row.values[NUMBER_COLUMN_ID]) {
+                mostRecentRow = row;
+                break;
+            }
+        }
+
+        if (!mostRecentRow) {
+            throw new Error('No valid rows found in the table');
+        }
+
+        const recentValue = parseInt(mostRecentRow.values[NUMBER_COLUMN_ID]);
+        console.log('Most recent value:', recentValue);
+
+        // Increment the value by 1
+        const newValue = recentValue + 1;
+        console.log('New value to be inserted:', newValue);
+
+        // Get current timestamp in milliseconds
+        const currentTimestamp = Date.now();
+
+        // Construct the new row data
+        const newRowData = {
+            values: {
+                [NUMBER_COLUMN_ID]: newValue,
+                [DATETIME_COLUMN_ID]: currentTimestamp
+            }
+        };
+
+        // Add a new row with the incremented value and new timestamp
+        const addRowResponse = await axios({
+            method: 'post',
+            url: `https://api.hubapi.com/hubdb/api/v2/tables/${TABLE_ID}/rows`,
+            headers: {
+                'Authorization': `Bearer ${HUBSPOT_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            data: newRowData
+        });
+
+        console.log('New row added:', JSON.stringify(addRowResponse.data, null, 2));
+
+        // Return success response
+        callback({
+            outputFields: {
+                newRowId: addRowResponse.data.id,
+                newValue: newValue,
+                newTimestamp: currentTimestamp
+            }
+        });
+
+    } catch (error) {
+        console.error('Error in custom coded workflow action:', error.response ? error.response.data : error.message);
+        callback({
+            outputFields: {
+                error: error.message
+            }
+        });
+    }
+};
