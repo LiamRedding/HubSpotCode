@@ -1,0 +1,60 @@
+const axios = require('axios');
+
+const clientId = ''; // Replace with your actual client ID
+const clientSecret = ''; // Replace with your actual client secret
+
+// Function to refresh the QuickBooks token
+async function refreshQuickBooksToken(refreshToken) {
+    try {
+        const response = await axios.post(
+            'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
+            `grant_type=refresh_token&refresh_token=${refreshToken}&client_id=${clientId}&client_secret=${clientSecret}`,
+            {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
+            }
+        );
+
+        const newTokens = response.data;
+        console.log('New Tokens:', newTokens);
+        return newTokens;
+    } catch (error) {
+        console.error('Error refreshing QuickBooks token:', error.response ? error.response.data : error.message);
+        throw error;
+    }
+}
+
+exports.main = async (event, callback) => {
+    try {
+        // Extract the refreshToken from the custom object property
+        const refreshToken = event.inputFields.refreshToken;
+
+        if (!refreshToken) {
+            throw new Error('No refresh token found in custom object');
+        }
+
+        // Refresh the token
+        const newTokens = await refreshQuickBooksToken(refreshToken);
+        const newRefreshToken = newTokens.refresh_token;
+        const accessToken = newTokens.access_token;
+
+        console.log('New Access Token:', accessToken);
+
+        // Return the new refresh token and access token for further use
+        callback({
+            outputFields: {
+                newRefreshToken: newRefreshToken,
+                newAccessToken: accessToken
+            }
+        });
+
+    } catch (error) {
+        console.error('Error in custom coded workflow action:', error.response ? error.response.data : error.message);
+        callback({
+            outputFields: {
+                error: error.message
+            }
+        });
+    }
+};
