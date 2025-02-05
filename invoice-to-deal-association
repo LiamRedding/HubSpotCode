@@ -1,0 +1,84 @@
+const axios = require('axios');
+
+exports.main = async (event, callback) => {
+  // Retrieve the deal ID and invoice number from input fields.
+  const dealId = event.inputFields['deal_id'];
+  const invoiceNumber = event.inputFields['invoice_number'];
+
+  console.log(`Starting process for dealId: ${dealId}, invoiceNumber: ${invoiceNumber}`);
+
+  if (!dealId || !invoiceNumber) {
+    console.error('Missing required fields');
+    callback({
+      outputFields: {
+        error: 'Missing required fields: deal_id and invoice_number are required.'
+      }
+    });
+    return;
+  }
+
+  try {
+    // STEP 1: Search for the invoice using the invoice number.
+    console.log(`Searching for invoice with number: ${invoiceNumber}`);
+    const searchResponse = await axios({
+      method: 'post',
+      url: 'https://api.hubapi.com/crm/v3/objects/invoices/search',
+      headers: {
+        'Authorization': `Bearer ${process.env.hapikey}`,
+        'Content-Type': 'application/json'
+      },
+      data: {
+        filterGroups: [
+          {
+            filters: [
+              {
+                propertyName: 'hs_number',
+                operator: 'EQ',
+                value: invoiceNumber
+              }
+            ]
+          }
+        ],
+        properties: ['hs_object_id']
+      }
+    });
+
+    if (!searchResponse.data.results || searchResponse.data.results.length === 0) {
+      throw new Error(`No invoice found with hs_number: ${invoiceNumber}`);
+    }
+
+    // Use the first matching invoice from the search results.
+    const invoiceId = searchResponse.data.results[0].id;
+    console.log(`Found invoice with ID: ${invoiceId}`);
+
+    // STEP 2: Associate the invoice with the deal using the associations endpoint.
+    console.log(`Associating invoice ${invoiceId} with deal ${dealId}`);
+    await axios({
+      method: 'put',
+      url: `https://api.hubapi.com/crm/v4/objects/invoices/${invoiceId}/associations/default/deals/${dealId}`,
+      headers: {
+        'Authorization': `Bearer ${process.env.hapikey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    // Return a success message.
+    callback({
+      outputFields: {
+        created: true,
+        message: 'Invoice successfully associated with deal'
+      }
+    });
+
+  } catch (error) {
+    console.error(`Error in process: ${error.message}`);
+    if (error.response) {
+      console.error('Response data:', JSON.stringify(error.response.data, null, 2));
+    }
+    callback({
+      outputFields: {
+        error: `Error associating invoice with deal: ${error.message}`
+      }
+    });
+  }
+};
